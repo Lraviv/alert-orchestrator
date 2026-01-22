@@ -2,6 +2,7 @@ import aiosmtplib
 import logging
 from email.message import EmailMessage
 from jinja2 import Environment, BaseLoader
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from config import settings
 from models.models import Alert, Recipient
@@ -55,6 +56,11 @@ class EmailSender:
         self.jinja_env = Environment(loader=BaseLoader())
         self.template = self.jinja_env.from_string(self.template_str)
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((aiosmtplib.SMTPException, ConnectionError, OSError)),
+    )
     async def send_email(self, recipient: Recipient, alert: Alert):
         """
         Send an email (HTML + Plaintext fallback) to the recipient for the given alert.
