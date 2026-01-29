@@ -1,6 +1,6 @@
 from config import settings
 from adapters.http.base import BaseHTTPClient
-from models.models import Alert, Recipient
+from models.models import Alert, Recipient, FullAlert
 
 
 class ProjectManagerClient(BaseHTTPClient):
@@ -14,9 +14,9 @@ class ProjectManagerClient(BaseHTTPClient):
             verify_ssl=settings.SSL_VERIFY,
         )
 
-    async def resolve_recipients(self, alert: Alert) -> list[Recipient]:
+    async def resolve_recipients(self, alert: Alert) -> FullAlert:
         """
-        Resolve recipients for the given alert.
+        Resolve recipients for the given alert and return a FullAlert.
         """
         payload = {
             "vendor": alert.vendor,
@@ -27,4 +27,5 @@ class ProjectManagerClient(BaseHTTPClient):
             endpoint="/resolve-recipients",
             json_payload=payload
         )
-        return [Recipient(**r) for r in data.get("recipients", [])]
+        recipients = [Recipient(**r) for r in data.get("recipients", [])]
+        return FullAlert(alert=alert, recipients=recipients)

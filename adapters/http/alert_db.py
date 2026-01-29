@@ -1,7 +1,6 @@
 from config import settings
 from adapters.http.base import BaseHTTPClient
-from models.models import Alert
-
+from models.models import Alert, AlertStatus
 
 class AlertDBClient(BaseHTTPClient):
     """
@@ -14,13 +13,21 @@ class AlertDBClient(BaseHTTPClient):
             verify_ssl=settings.SSL_VERIFY,
         )
 
-    async def persist_alert(self, alert: Alert) -> str:
+    async def persist_alert(self, alert: Alert) -> AlertStatus:
         """
         Persist the alert and check for deduplication.
-        Returns "ok" if new, "deduped" if already exists.
+        Returns AlertStatus.OK or AlertStatus.DEDUP.
         """
+        # Note: model_dump(by_alias=True) ensures 'dedup_key' is sent as 'fingerprint' if needed by DB
+        json_payload = alert.model_dump(by_alias=True, mode="json")
+        
         data = await self._post(
             endpoint="/alerts",
-            json_payload=alert.model_dump(mode="json")
+            json_payload=json_payload
         )
-        return data.get("status", "ok")
+        status_str = data.get("status", "ok")
+        
+        # Map DB response to Enum
+        if status_str == "dedup":
+            return AlertStatus.DEDUP
+        return AlertStatus.OK

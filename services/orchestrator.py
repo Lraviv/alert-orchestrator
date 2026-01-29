@@ -19,22 +19,48 @@ class AlertOrchestrator:
         self.project_manager = project_manager_client
         self.email_sender = email_sender
 
+    async def startup(self):
+        """Initialize adapter connections."""
+        logger.info("Starting up adapters...")
+        # Start HTTP Clients
+        await self.alert_db.start()
+        await self.project_manager.start()
+        
+        # Start Email Sender (if it has a start/connect method)
+        if hasattr(self.email_sender, 'connect'):
+            await self.email_sender.connect()
+
+    async def shutdown(self):
+        """Close adapter connections."""
+        logger.info("Shutting down adapters...")
+        await self.alert_db.close()
+        await self.project_manager.close()
+        
+        if hasattr(self.email_sender, 'close'):
+            await self.email_sender.close()
+
     async def process_alert(self, alert: Alert):
         """
         Orchestrate the alert processing flow.
         """
-        logger.info(f"Processing alert: {alert.fingerprint}")
+        logger.info(f"Processing alert: {alert.dedup_key}")
 
-        # 1. Persist & Dedup
-        status = await self.alert_db.persist_alert(alert)
-        if status == "deduped":
-            logger.info(f"Alert deduped: {alert.fingerprint}")
-            return
-
-        # 2. Resolve Recipients
-        recipients = await self.project_manager.resolve_recipients(alert)
+        # 1. Resolve Recipients (FIRST)
+        full_alert = await self.project_manager.resolve_recipients(alert)
+        recipients = full_alert.recipients
+        
         if not recipients:
-            logger.warning(f"No recipients found for alert: {alert.fingerprint}")
+            logger.warning(f"No recipients found for alert: {alert.dedup_key}")
+            # Even if no recipients, we might still want to persist? 
+            # User didn't specify, but usually we should persist.
+            # Assuming we proceed to persist.
+        
+        # 2. Persist & Dedup (SECOND)
+        from models.models import AlertStatus
+        status = await self.alert_db.persist_alert(alert)
+        
+        if status == AlertStatus.DEDUP:
+            logger.info(f"Alert deduped: {alert.dedup_key}")
             return
 
         # 3. Send Emails
@@ -43,8 +69,7 @@ class AlertOrchestrator:
                 await self.email_sender.send_email(recipient, alert)
             except Exception as e:
                 # Log error but don't re-raise for individual recipients, assuming basic resiliency.
-                # However, previous logic was to log and pass.
                 logger.error(f"Failed to send email to {recipient.email}: {e}")
                 pass
                 
-        logger.info(f"Alert processing completed: {alert.fingerprint}")
+        logger.info(f"Alert processing completed: {alert.dedup_key}")

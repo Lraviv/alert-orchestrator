@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Tuple
 import logging
 
 from config import settings
@@ -17,9 +17,9 @@ from services.orchestrator import AlertOrchestrator
 logger = logging.getLogger(__name__)
 
 
-def create_consumer() -> Union[RabbitMQConsumer, RabbitMQConsumerStub]:
+def create_top_level_dependencies() -> Tuple[Union[RabbitMQConsumer, RabbitMQConsumerStub], AlertOrchestrator]:
     """
-    Wire up and return the RabbitMQConsumer (or Stub).
+    Wire up and return the RabbitMQConsumer and Orchestrator.
     """
     logger.info("Initializing dependencies...")
 
@@ -35,7 +35,6 @@ def create_consumer() -> Union[RabbitMQConsumer, RabbitMQConsumerStub]:
             email_sender=email_sender,
         )
         # Note: Stub consumer doesn't really consume unless extended to poll a file or something.
-        # But for "local development" checking wiring, it works. 
         consumer = RabbitMQConsumerStub(process_alert_callback=orchestrator.process_alert)
     else:
         alert_db = AlertDBClient()
@@ -51,4 +50,4 @@ def create_consumer() -> Union[RabbitMQConsumer, RabbitMQConsumerStub]:
         consumer = RabbitMQConsumer(process_alert_callback=orchestrator.process_alert)
     
     logger.info("Dependencies initialized.")
-    return consumer
+    return consumer, orchestrator

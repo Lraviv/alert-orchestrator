@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        /* Reset & Base */
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f3f4f6;
+            margin: 0;
+            padding: 40px 20px;
+            color: #1f2937;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Container */
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025);
+        }
+
+        /* Header */
+        .header {
+            padding: 30px;
+            text-align: center;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .header.firing {
+            background: linear-gradient(135deg, #fee2e2 0%, #fef2f2 100%);
+            border-bottom-color: #fecaca;
+        }
+
+        .header.resolved {
+            background: linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%);
+            border-bottom-color: #bbf7d0;
+        }
+
+        .status-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+            display: block;
+        }
+
+        .title {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: -0.025em;
+            color: #111827;
+        }
+
+        .subtitle {
+            margin-top: 8px;
+            font-size: 14px;
+            color: #6b7280;
+            font-weight: 500;
+        }
+
+        /* Status Badge */
+        .badge {
+            display: inline-block;
+            margin-top: 12px;
+            padding: 6px 16px;
+            border-radius: 9999px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .badge-critical {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+
+        .badge-warning {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+
+        .badge-info {
+            background-color: #e0f2fe;
+            color: #075985;
+        }
+
+        /* Content */
+        .content {
+            padding: 40px;
+        }
+
+        /* Grid System */
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .label {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #9ca3af;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            margin-bottom: 4px;
+        }
+
+        .value {
+            font-size: 15px;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        /* Description Box */
+        .description-card {
+            background-color: #f9fafb;
+            border-radius: 8px;
+            padding: 24px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .description-card h4 {
+            margin: 0 0 12px 0;
+            font-size: 13px;
+            color: #4b5563;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .description-text {
+            color: #4b5563;
+            font-size: 15px;
+        }
+
+        /* Button */
+        .btn-wrapper {
+            margin-top: 40px;
+            text-align: center;
+        }
+
+        .btn {
+            display: inline-block;
+            background-color: #2563eb;
+            color: white;
+            padding: 14px 28px;
+            font-size: 15px;
+            font-weight: 600;
+            text-decoration: none;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2), 0 2px 4px -1px rgba(37, 99, 235, 0.1);
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background-color: #1d4ed8;
+            box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.3);
+            transform: translateY(-1px);
+        }
+
+        /* Footer */
+        .footer {
+            background-color: #f9fafb;
+            padding: 24px;
+            text-align: center;
+            border-top: 1px solid #f3f4f6;
+        }
+
+        .footer-text {
+            font-size: 12px;
+            color: #9ca3af;
+        }
+
+        .metadata {
+            margin-top: 8px;
+            font-family: monospace;
+            font-size: 11px;
+            color: #d1d5db;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header {{ 'firing' if alert.status == 'firing' else 'resolved' }}">
+            <span class="status-icon">
+                {{ "🚨" if alert.status == 'firing' else "✅" }}
+            </span>
+            <h1 class="title">{{ "Alert Firing" if alert.status == 'firing' else "Alert Resolved" }}</h1>
+            <div class="subtitle">A new alert has been reported in <strong>{{ alert.environment|default('Unknown Env')
+                    }}</strong></div>
+
+            <div class="badge badge-{{ alert.severity }}">
+                {{ alert.severity }} Priority
+            </div>
+        </div>
+
+        <!-- Content -->
+        <div class="content">
+            <div class="grid">
+                <div>
+                    <div class="label">Alert Name</div>
+                    <div class="value">{{ alert.labels.get('alertname') }}</div>
+                </div>
+                <div>
+                    <div class="label">Vendor</div>
+                    <div class="value">{{ alert.vendor|default('N/A') }}</div>
+                </div>
+                <div>
+                    <div class="label">Site</div>
+                    <div class="value">{{ alert.site|default('N/A') }}</div>
+                </div>
+                <div>
+                    <div class="label">Time</div>
+                    <div class="value">{{ alert.startsAt.strftime('%H:%M UTC') if alert.startsAt else 'Now' }}</div>
+                </div>
+            </div>
+
+            <!-- Description -->
+            <div class="description-card">
+                <h4>Description</h4>
+                <div class="description-text">
+                    {{ alert.annotations.get('description', 'No detailed description provided.') }}
+                </div>
+            </div>
+
+            <!-- CTA Button -->
+            {% if alert.generatorURL %}
+            <div class="btn-wrapper">
+                <a href="{{ alert.generatorURL }}" class="btn">View Alert Source &rarr;</a>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <div class="footer-text">
+                Sent automatically by <strong>AlertOrchestrator</strong>.<br>
+                If you believe this is an error, please contact DevOps.
+            </div>
+            <div class="metadata">
+                Fingerprint: {{ alert.fingerprint }}
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

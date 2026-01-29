@@ -25,8 +25,13 @@ Usage: Set USE_MOCKS=True in config.py or environment variables.
 class AlertDBClientStub(AlertDBClient):
     """
     Simulates the Alert Database.
-    Always returns 'ok' by default, or you can modify it to simulate dedup logic.
     """
+    async def start(self):
+        logger.info("[STUB] AlertDBClientStub started")
+
+    async def close(self):
+        logger.info("[STUB] AlertDBClientStub closed")
+
     async def persist_alert(self, alert: Alert) -> str:
         logger.info(f"[STUB] Persisting alert: {alert.fingerprint}")
         # Randomly simulate dedup
@@ -36,20 +41,30 @@ class AlertDBClientStub(AlertDBClient):
 class ProjectManagerClientStub(ProjectManagerClient):
     """
     Simulates the Project Manager API.
-    Always returns a hardcoded recipient list.
     """
+    async def start(self):
+        logger.info("[STUB] ProjectManagerClientStub started")
+
+    async def close(self):
+        logger.info("[STUB] ProjectManagerClientStub closed")
+
     async def resolve_recipients(self, alert: Alert) -> list[Recipient]:
-        logger.info(f"[STUB] Resolving recipients for: {alert.dedup_key}")
+        logger.info(f"[STUB] Resolving recipients for: {alert.fingerprint}")
         return [Recipient(email="dev@example.com", group_name="DevOps")]
 
 
 class EmailSenderStub(EmailSender):
     """
     Simulates sending an email.
-    Instead of connecting to SMTP, it just logs the email attempt.
     """
+    async def connect(self):
+        logger.info("[STUB] EmailSenderStub connected")
+
+    async def close(self):
+        logger.info("[STUB] EmailSenderStub closed")
+
     async def send_email(self, recipient: Recipient, alert: Alert):
-        logger.info(f"[STUB] Sending email to {recipient.email} for alert {alert.dedup_key}")
+        logger.info(f"[STUB] Sending email to {recipient.email} for alert {alert.fingerprint}")
 
 
 class RabbitMQConsumerStub(RabbitMQConsumer):
@@ -74,3 +89,16 @@ class RabbitMQConsumerStub(RabbitMQConsumer):
     async def close(self):
         logger.info("[STUB] RabbitMQ Stub closed")
         self._connected = False
+
+    async def simulate_alert(self, alert_data: dict):
+        """
+        Manually trigger the process callback with a dict payload.
+        Useful for local testing via HTTP trigger.
+        """
+        try:
+            alert = Alert(**alert_data)
+            logger.info(f"[STUB] Simulating incoming alert: {alert.fingerprint}")
+            await self.process_callback(alert)
+        except Exception as e:
+            logger.error(f"[STUB] Simulation failed: {e}")
+            raise
