@@ -27,5 +27,29 @@ class ProjectManagerClient(BaseHTTPClient):
             endpoint="/resolve-recipients",
             json_payload=payload
         )
-        recipients = [Recipient(**r) for r in data.get("recipients", [])]
-        return FullAlert(alert=alert, recipients=recipients)
+        recipients_data = data.get("recipients", [])
+        
+        # Merge all alert_groups from all recipients found
+        merged_groups = []
+        project_id = "unknown"
+        project_name = "unknown"
+        
+        if recipients_data:
+            # Take identity from first recipient
+            project_id = recipients_data[0].get("project_id", "unknown")
+            project_name = recipients_data[0].get("project_name", "unknown")
+            
+            for r in recipients_data:
+                groups = r.get("alert_groups", [])
+                if groups:
+                    merged_groups.extend(groups)
+        
+        # De-dup emails
+        merged_groups = list(set(merged_groups))
+
+        return FullAlert(
+            **alert.model_dump(),
+            project_id=project_id,
+            project_name=project_name,
+            alert_groups=merged_groups
+        )

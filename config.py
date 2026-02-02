@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     # RabbitMQ
     RABBITMQ_URL: str = "amqp://guest:guest@localhost:5672/"
     RABBITMQ_QUEUE_NAME: str = "alerts"
-    RABBITMQ_PREFETCH_COUNT: int = 10
+    RABBITMQ_PREFETCH_COUNT: int = 50
 
     # Project Manager API
     PROJECT_MANAGER_API_URL: str = "http://project-manager:8080"
@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: Optional[str] = None
     SMTP_USE_TLS: bool = False
     SMTP_TIMEOUT: float = 10.0
+    SMTP_POOL_SIZE: int = 20
     EMAIL_FROM: str = "alerts@example.com"
 
 

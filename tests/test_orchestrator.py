@@ -26,11 +26,12 @@ class TestAlertOrchestrator(unittest.IsolatedAsyncioTestCase):
 
     async def test_process_alert_happy_path(self):
         # Setup Mocks
-        recipients = [create_recipient(email="test@example.com")]
-        self.mock_project_manager.resolve_recipients.return_value = FullAlert(
-            alert=self.sample_alert, 
-            recipients=recipients
+        full = FullAlert(
+            **self.sample_alert.model_dump(),
+            project_id="p1", project_name="n1", alert_groups=["test@example.com"]
         )
+        self.mock_project_manager.resolve_recipients.return_value = full
+        
         self.mock_alert_db.persist_alert.return_value = AlertStatus.OK
         
         # Run
@@ -38,16 +39,16 @@ class TestAlertOrchestrator(unittest.IsolatedAsyncioTestCase):
 
         # Verify Order: Resolve, then Persist, then Email
         self.mock_project_manager.resolve_recipients.assert_awaited_once_with(self.sample_alert)
-        self.mock_alert_db.persist_alert.assert_awaited_once_with(self.sample_alert)
-        self.mock_email_sender.send_email.assert_awaited_once()
+        self.mock_alert_db.persist_alert.assert_awaited_once_with(full)
+        self.mock_email_sender.send_email.assert_awaited_once_with(full, full)
 
     async def test_process_alert_deduped(self):
         # Setup Mocks
-        recipients = [create_recipient(email="test@example.com")]
-        self.mock_project_manager.resolve_recipients.return_value = FullAlert(
-            alert=self.sample_alert, 
-            recipients=recipients
+        full = FullAlert(
+            **self.sample_alert.model_dump(),
+            project_id="p1", project_name="n1", alert_groups=["test@example.com"]
         )
+        self.mock_project_manager.resolve_recipients.return_value = full
         self.mock_alert_db.persist_alert.return_value = AlertStatus.DEDUP
 
         # Run
@@ -55,16 +56,17 @@ class TestAlertOrchestrator(unittest.IsolatedAsyncioTestCase):
 
         # Verify
         self.mock_project_manager.resolve_recipients.assert_awaited_once_with(self.sample_alert)
-        self.mock_alert_db.persist_alert.assert_awaited_once_with(self.sample_alert)
+        self.mock_alert_db.persist_alert.assert_awaited_once_with(full)
         # Should NOT email if deduped (even if recipients found)
         self.mock_email_sender.send_email.assert_not_awaited()
 
     async def test_process_alert_no_recipients(self):
         # Setup Mocks
-        self.mock_project_manager.resolve_recipients.return_value = FullAlert(
-            alert=self.sample_alert, 
-            recipients=[]
+        full = FullAlert(
+            **self.sample_alert.model_dump(),
+            project_id="p1", project_name="n1", alert_groups=[]
         )
+        self.mock_project_manager.resolve_recipients.return_value = full
         self.mock_alert_db.persist_alert.return_value = AlertStatus.OK
 
         # Run
@@ -73,15 +75,16 @@ class TestAlertOrchestrator(unittest.IsolatedAsyncioTestCase):
         # Verify
         self.mock_project_manager.resolve_recipients.assert_awaited_once_with(self.sample_alert)
         # Should persist even if no recipients (assuming logic change interpretation)
-        self.mock_alert_db.persist_alert.assert_awaited_once_with(self.sample_alert)
+        self.mock_alert_db.persist_alert.assert_awaited_once_with(full)
         self.mock_email_sender.send_email.assert_not_awaited()
 
     async def test_persist_alert_failure(self):
         # Setup Mocks - Resolve succeeds
-        self.mock_project_manager.resolve_recipients.return_value = FullAlert(
-            alert=self.sample_alert, 
-            recipients=[create_recipient()]
+        full = FullAlert(
+            **self.sample_alert.model_dump(),
+            project_id="p1", project_name="n1", alert_groups=["t@e.com"]
         )
+        self.mock_project_manager.resolve_recipients.return_value = full
         # Persist fails
         self.mock_alert_db.persist_alert.side_effect = Exception("DB Down")
         
@@ -97,24 +100,25 @@ class TestAlertOrchestrator(unittest.IsolatedAsyncioTestCase):
         # Should not have tried to persist if resolve failed
         self.mock_alert_db.persist_alert.assert_not_awaited()
 
-    async def test_process_alert_partial_email_failure(self):
+    async def test_process_alert_email_failure(self):
         # Setup Mocks
-        rcpt1 = create_recipient(email="user1@example.com")
-        rcpt2 = create_recipient(email="user2@example.com")
-        self.mock_project_manager.resolve_recipients.return_value = FullAlert(
-            alert=self.sample_alert, 
-            recipients=[rcpt1, rcpt2]
+        full = FullAlert(
+            **self.sample_alert.model_dump(),
+            project_id="p1", project_name="n1", alert_groups=["u1@e.com", "u2@e.com"]
         )
+        self.mock_project_manager.resolve_recipients.return_value = full
+        
         self.mock_alert_db.persist_alert.return_value = AlertStatus.OK
         
-        # Simulate first email failing, second succeeding
-        self.mock_email_sender.send_email.side_effect = [Exception("SMTP Error"), None]
+        # Simulate send_email failing
+        self.mock_email_sender.send_email.side_effect = Exception("SMTP Error")
 
         # Run
-        await self.orchestrator.process_alert(self.sample_alert)
+        with self.assertRaises(Exception):
+            await self.orchestrator.process_alert(self.sample_alert)
 
-        # Verify both attempted
-        self.assertEqual(self.mock_email_sender.send_email.call_count, 2)
+        # Verify called once and failed
+        self.mock_email_sender.send_email.assert_awaited_once_with(full, full)
 
 if __name__ == "__main__":
     unittest.main()

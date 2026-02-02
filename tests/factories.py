@@ -33,15 +33,17 @@ def create_alert(
         generatorURL="http://prometheus/graph"
     )
 
-def create_recipient(email: str = "test@example.com", project_name: str = "TestProject") -> Recipient:
+def create_recipient(emails: list[str] = None, project_name: str = "TestProject") -> Recipient:
     """
     Factory function to create a Recipient object.
     """
+    if emails is None:
+        emails = ["test@example.com"]
+        
     return Recipient(
-        email=email, 
         project_name=project_name, 
         project_id="prj-123", 
-        alert_groups=["DevOps"]
+        alert_groups=emails
     )
 
 def create_alert_payload(**overrides) -> dict:

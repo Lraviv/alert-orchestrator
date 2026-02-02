@@ -50,21 +50,26 @@ class ProjectManagerClientStub(ProjectManagerClient):
 
     async def resolve_recipients(self, alert: Alert) -> list[Recipient]:
         logger.info(f"[STUB] Resolving recipients for: {alert.fingerprint}")
-        return [Recipient(email="dev@example.com", group_name="DevOps")]
+        return [Recipient(project_id="p1", project_name="TestProject", alert_groups=["dev@example.com"])]
 
 
 class EmailSenderStub(EmailSender):
     """
     Simulates sending an email.
     """
+    def __init__(self, pool=None):
+        # We don't need the pool in the stub, but we accept it to match signature
+        # We call super init to satisfy linters and inheritance even if we don't use the state
+        super().__init__(pool=pool)
+
     async def connect(self):
         logger.info("[STUB] EmailSenderStub connected")
 
     async def close(self):
         logger.info("[STUB] EmailSenderStub closed")
 
-    async def send_email(self, recipient: Recipient, alert: Alert):
-        logger.info(f"[STUB] Sending email to {recipient.email} for alert {alert.fingerprint}")
+    async def send_email(self, recipients: list[Recipient], alert: Alert):
+        logger.info(f"[STUB] Sending email to {len(recipients)} recipients for alert {alert.fingerprint}")
 
 
 class RabbitMQConsumerStub(RabbitMQConsumer):

@@ -47,29 +47,32 @@ class AlertOrchestrator:
 
         # 1. Resolve Recipients (FIRST)
         full_alert = await self.project_manager.resolve_recipients(alert)
-        recipients = full_alert.recipients
+        # Note: full_alert is (Alert + Recipient)
         
-        if not recipients:
-            logger.warning(f"No recipients found for alert: {alert.dedup_key}")
+        if not full_alert.alert_groups:
+            logger.warning(f"No recipients found for alert: {full_alert.dedup_key}")
             # Even if no recipients, we might still want to persist? 
             # User didn't specify, but usually we should persist.
             # Assuming we proceed to persist.
         
         # 2. Persist & Dedup (SECOND)
         from models.models import AlertStatus
-        status = await self.alert_db.persist_alert(alert)
+        # We persist the original alert part, or full_alert? 
+        # Persistence expects Alert. FullAlert inherits Alert, so it works.
+        status = await self.alert_db.persist_alert(full_alert)
         
         if status == AlertStatus.DEDUP:
-            logger.info(f"Alert deduped: {alert.dedup_key}")
+            logger.info(f"Alert deduped: {full_alert.dedup_key}")
             return
 
         # 3. Send Emails
-        for recipient in recipients:
+        if full_alert.alert_groups:
             try:
-                await self.email_sender.send_email(recipient, alert)
+                # full_alert serves as both Recipient (1st arg) and Alert (2nd arg)
+                await self.email_sender.send_email(full_alert, full_alert)
             except Exception as e:
-                # Log error but don't re-raise for individual recipients, assuming basic resiliency.
-                logger.error(f"Failed to send email to {recipient.email}: {e}")
-                pass
+                # Log error and re-raise to trigger NACK and retry
+                logger.error(f"Failed to send email to recipients: {e}")
+                raise e
                 
         logger.info(f"Alert processing completed: {alert.dedup_key}")

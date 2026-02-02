@@ -44,13 +44,11 @@ class Recipient(BaseModel):
     """
     project_id: str
     project_name: str
-    alert_groups: Optional[List[str]] = None
-    # Assuming email resolves from somewhere else or keeping it optional?
-    # User didn't specify email in the fields list, but we need it to send emails.
-    # Adding it as Optional for now to avoid breaking everything immediately, 
-    # but the Resolving logic will need to figure out where to get it if not in PM response.
-    email: Optional[str] = None 
+    alert_groups: list[str] = Field(default_factory=list)
+    # alert_groups contains the list of email addresses to notify 
     
-class FullAlert(BaseModel):
-    alert: Alert
-    recipients: List[Recipient]
+class FullAlert(Alert, Recipient):
+    """
+    Combines Alert and Recipient data into a single context.
+    """
+    pass
