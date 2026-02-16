@@ -188,6 +188,11 @@
 
 <body>
     <div class="container">
+        <!-- Banner Image -->
+        <div style="width: 100%; overflow: hidden;">
+            <img src="cid:new_alert_banner" alt="Alert Banner" style="width: 100%; height: auto; display: block;">
+        </div>
+
         <!-- Header -->
         <div class="header {{ 'firing' if alert.status == 'firing' else 'resolved' }}">
             <span class="status-icon">
@@ -241,6 +246,9 @@
 
         <!-- Footer -->
         <div class="footer">
+            <div style="margin-bottom: 15px;">
+                <img src="cid:cloudiologo" alt="Cloudio Logo" style="height: 30px; width: auto;">
+            </div>
             <div class="footer-text">
                 Sent automatically by <strong>AlertOrchestrator</strong>.<br>
                 If you believe this is an error, please contact DevOps.

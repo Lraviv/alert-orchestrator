@@ -37,10 +37,11 @@ class TestAlertOrchestrator(unittest.IsolatedAsyncioTestCase):
         # Run
         await self.orchestrator.process_alert(self.sample_alert)
 
-        # Verify Order: Resolve, then Persist, then Email
+        # Verify Order: Resolve, then Persist, then Email, then Update Status
         self.mock_project_manager.resolve_recipients.assert_awaited_once_with(self.sample_alert)
         self.mock_alert_db.persist_alert.assert_awaited_once_with(full)
         self.mock_email_sender.send_email.assert_awaited_once_with(full, full)
+        self.mock_alert_db.update_status.assert_awaited_once_with(self.sample_alert.dedup_key, AlertStatus.SENT)
 
     async def test_process_alert_deduped(self):
         # Setup Mocks
@@ -59,6 +60,8 @@ class TestAlertOrchestrator(unittest.IsolatedAsyncioTestCase):
         self.mock_alert_db.persist_alert.assert_awaited_once_with(full)
         # Should NOT email if deduped (even if recipients found)
         self.mock_email_sender.send_email.assert_not_awaited()
+        # Should NOT update status if deduped (orchestrator returns early)
+        self.mock_alert_db.update_status.assert_not_awaited()
 
     async def test_process_alert_no_recipients(self):
         # Setup Mocks
@@ -77,6 +80,10 @@ class TestAlertOrchestrator(unittest.IsolatedAsyncioTestCase):
         # Should persist even if no recipients (assuming logic change interpretation)
         self.mock_alert_db.persist_alert.assert_awaited_once_with(full)
         self.mock_email_sender.send_email.assert_not_awaited()
+        # No email sent -> No status update? 
+        # Logic says: if full_alert.alert_groups: try send ...
+        # So update_status is NOT called.
+        self.mock_alert_db.update_status.assert_not_awaited()
 
     async def test_persist_alert_failure(self):
         # Setup Mocks - Resolve succeeds
@@ -90,6 +97,9 @@ class TestAlertOrchestrator(unittest.IsolatedAsyncioTestCase):
         
         with self.assertRaises(Exception):
             await self.orchestrator.process_alert(self.sample_alert)
+        
+        # Verify no further status updates
+        self.mock_alert_db.update_status.assert_not_awaited()
 
     async def test_resolve_recipients_failure(self):
         # Resolve fails
@@ -99,6 +109,7 @@ class TestAlertOrchestrator(unittest.IsolatedAsyncioTestCase):
             await self.orchestrator.process_alert(self.sample_alert)
         # Should not have tried to persist if resolve failed
         self.mock_alert_db.persist_alert.assert_not_awaited()
+        self.mock_alert_db.update_status.assert_not_awaited()
 
     async def test_process_alert_email_failure(self):
         # Setup Mocks
@@ -119,6 +130,30 @@ class TestAlertOrchestrator(unittest.IsolatedAsyncioTestCase):
 
         # Verify called once and failed
         self.mock_email_sender.send_email.assert_awaited_once_with(full, full)
+        # Expect update status FAILED
+        self.mock_alert_db.update_status.assert_awaited_once_with(self.sample_alert.dedup_key, AlertStatus.FAILED)
+
+    async def test_process_alert_status_update_failure_after_send(self):
+        # Setup Mocks
+        full = FullAlert(
+            **self.sample_alert.model_dump(),
+            project_id="p1", project_name="n1", alert_groups=["u1@e.com"]
+        )
+        self.mock_project_manager.resolve_recipients.return_value = full
+        self.mock_alert_db.persist_alert.return_value = AlertStatus.OK
+        
+        # Email succeed
+        self.mock_email_sender.send_email.return_value = None
+        
+        # Status update fail
+        self.mock_alert_db.update_status.side_effect = Exception("DB Update Failed")
+
+        # Run - Should NOT raise exception
+        await self.orchestrator.process_alert(self.sample_alert)
+
+        # Verify
+        self.mock_email_sender.send_email.assert_awaited_once()
+        self.mock_alert_db.update_status.assert_awaited_once_with(self.sample_alert.dedup_key, AlertStatus.SENT)
 
 if __name__ == "__main__":
     unittest.main()

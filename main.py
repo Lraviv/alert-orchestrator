@@ -14,6 +14,10 @@ async def main():
     setup_logging()
     logger.info("Service starting...")
 
+    consumer = None
+    orchestrator = None
+    health_runner = None
+
     # Wire up dependencies
     try:
         consumer, orchestrator = create_top_level_dependencies()
@@ -21,9 +25,8 @@ async def main():
         logger.error(f"Failed to initialize dependencies: {e}")
         sys.exit(1)
 
-    # Start Healthcheck Server (Passing consumer for readiness check)
+    # Start Healthcheck Server
     try:
-        # Note: 'orchestrator' is defined in the previous block if successful
         health_runner = await start_health_server(consumer=consumer, orchestrator=orchestrator)
     except Exception as e:
         logger.error(f"Failed to start healthcheck server: {e}")
@@ -46,11 +49,12 @@ async def main():
 
     try:
         # Start Adapters
-        if 'orchestrator' in locals():
+        if orchestrator:
              await orchestrator.startup()
              
         # Connect Consumer
-        await consumer.connect()
+        if consumer:
+            await consumer.connect()
         logger.info("Service ready")
         
         await stop_event.wait()
@@ -59,12 +63,12 @@ async def main():
         sys.exit(1)
     finally:
         logger.info("Service stopping")
-        if 'consumer' in locals():
+        if consumer:
             await consumer.close()
-        if 'orchestrator' in locals():
+        if orchestrator:
             await orchestrator.shutdown()
         logger.info("Cleaning up healthcheck server...")
-        if 'health_runner' in locals():
+        if health_runner:
             await health_runner.cleanup()
         logger.info("Service stopped")
 

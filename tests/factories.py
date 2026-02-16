@@ -8,7 +8,8 @@ def create_alert(
     description: str = "Something failed",
     dedup_key: str = "test-fp",
     vendor: str = "TestVendor",
-    starts_at: datetime = None
+    starts_at: datetime = None,
+    **kwargs
 ) -> Alert:
     """
     Factory function to create an Alert object with default test values.
@@ -16,15 +17,21 @@ def create_alert(
     if starts_at is None:
         starts_at = datetime.now()
         
+    labels = {
+        "alertname": alertname,
+        "severity": severity,
+        "vendor": vendor,
+        "site": "TestSite",
+        "environment": "TestEnv"
+    }
+    # Allow overriding labels via labels dict in kwargs, or flat kwargs?
+    # Test used: create_alert(labels={"project": "p1"})
+    if "labels" in kwargs:
+        labels.update(kwargs["labels"])
+        
     return Alert(
         status=status,
-        labels={
-            "alertname": alertname,
-            "severity": severity,
-            "vendor": vendor,
-            "site": "TestSite",
-            "environment": "TestEnv"
-        },
+        labels=labels,
         annotations={
             "description": description
         },

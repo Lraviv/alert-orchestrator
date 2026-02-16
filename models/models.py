@@ -6,6 +6,8 @@ from enum import Enum
 class AlertStatus(str, Enum):
     OK = "ok"
     DEDUP = "dedup"
+    SENT = "sent"
+    FAILED = "failed"
 
 class Alert(BaseModel):
     """
@@ -18,6 +20,10 @@ class Alert(BaseModel):
     endsAt: Optional[datetime] = None
     generatorURL: Optional[str] = None
     dedup_key: str = Field(..., alias="fingerprint")
+    
+    @property
+    def fingerprint(self) -> str:
+        return self.dedup_key
     
     model_config = {"populate_by_name": True}
 

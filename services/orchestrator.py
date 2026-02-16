@@ -71,8 +71,23 @@ class AlertOrchestrator:
                 # full_alert serves as both Recipient (1st arg) and Alert (2nd arg)
                 await self.email_sender.send_email(full_alert, full_alert)
             except Exception as e:
-                # Log error and re-raise to trigger NACK and retry
-                logger.error(f"Failed to send email to recipients: {e}")
-                raise e
+                logger.error(f"Failed to send email for {alert.dedup_key}: {e}")
+                # Update Status: FAILED
+                try:
+                    await self.alert_db.update_status(alert.dedup_key, AlertStatus.FAILED)
+                except Exception as db_e:
+                    logger.error(f"Failed to update failures status for {alert.dedup_key}: {db_e}")
+                # Re-raise the original error (to trigger Retry or DLQ) so we don't lose the alert
+                raise
+
+            # 4. Update Status: SENT
+            # We do this OUTSIDE the email try-except block.
+            # If this fails, we catch and log it, but DO NOT raise, 
+            # because the email was already sent successfully.
+            # We do NOT want to NACK and retry sending the email again.
+            try:
+                await self.alert_db.update_status(alert.dedup_key, AlertStatus.SENT)
+            except Exception as e:
+                 logger.error(f"Failed to update status to SENT for {alert.dedup_key}: {e}")
                 
         logger.info(f"Alert processing completed: {alert.dedup_key}")

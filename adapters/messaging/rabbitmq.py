@@ -8,6 +8,7 @@ from aio_pika.abc import AbstractIncomingMessage
 
 from config import settings
 from models.models import Alert
+from exceptions import RetryableError, NonRetryableError
 
 logger = logging.getLogger(__name__)
 
@@ -63,11 +64,36 @@ class RabbitMQConsumer:
 
                 await self.process_callback(alert)
                 logger.info(f"Message processed successfully: {alert.fingerprint}")
+                await message.ack()
                 
+            except RetryableError as e:
+                logger.warning(f"Retryable error processing alert: {e}")
+                # Requeue message to be retried
+                await message.nack(requeue=True)
+            except NonRetryableError as e:
+                logger.error(f"Non-retryable error processing alert: {e}")
+                # Dead letter or discard
+                await message.reject(requeue=False)
             except Exception as e:
-                logger.error(f"Message processing failed: {e}")
-                # Re-raise to trigger nack
-                raise e
+                logger.error(f"Unexpected error processing message: {e}")
+                # Re-raise to trigger nack (default behavior of aio_pika process context manager depending on version/handling)
+                # But we are in a Manual loop logic here.
+                # 'message.process' context manager automatically acks if no exception, and nacks if exception is raised (if ignore_processed=False).
+                # We passed ignore_processed=True, so we are manually responsible?
+                # Docs say: `async with message.process():`
+                # If ignore_processed=True, it DOES NOT auto ack/nack?
+                # Actually, `message.process()` does catch exceptions and NACKs if ignore_processed=False (default).
+                # Code uses `ignore_processed=True`. Why?
+                # "When ignore_processed=True you must process message manually (ack, reject, nack)"
+                # Wait, looking at line 51: `async with message.process(ignore_processed=True):`
+                # If so, existing code `raise e` at line 70 would crash the consumer loop unless `message.process` catches it?
+                # aio-pika's `process` context manager (if default) catches exception and nacks.
+                # If `ignore_processed=True`, it probably does NOTHING.
+                # So if loop logic raises, valid.
+                
+                # I should handle it explicitly to be safe.
+                # Default safety: NACK (requeue) for transient.
+                await message.nack(requeue=True)
 
     async def close(self):
         if self.connection:
